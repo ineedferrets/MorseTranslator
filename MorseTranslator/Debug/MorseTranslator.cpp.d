@@ -44,8 +44,9 @@ C:\Users\Ferrets\AppData\Local\Temp\VMBuilds\MorseTranslator\uno\Debug\MorseTran
  C:\Users\Ferrets\Documents\Arduino\libraries\ArduinoSTL\src/iostream \
  C:\Users\Ferrets\Documents\Arduino\libraries\ArduinoSTL\src/string_iostream \
  C:\Program\ Files\ (x86)\Arduino\hardware\arduino\avr\cores\arduino/Stream.h \
- C:\Program\ Files\ (x86)\Arduino\libraries\LiquidCrystal\src/LiquidCrystal.h \
+ C:\Program\ Files\ (x86)\Arduino\hardware\arduino\avr\libraries\EEPROM\src/eeprom.h \
+ C:\Users\Ferrets\AppData\Local\Temp\VMBuilds\MorseTranslator\uno\Debug\LiquidCrystal.h \
  C:\Program\ Files\ (x86)\Arduino\hardware\arduino\avr\cores\arduino/Print.h \
+ C:\Program\ Files\ (x86)\Arduino\hardware\arduino\avr\cores\arduino/Arduino.h \
  C:\Users\Ferrets\AppData\Local\Temp\VMBuilds\MorseTranslator\uno\Debug\BinaryTree.h \
- C:\Program\ Files\ (x86)\Microsoft\ Visual\ Studio\ 14.0\Common7\IDE\Extensions\ph15cfmq.oax\Micro\ Platforms\default\debuggers\VM_DBG/VM_DBG.h \
- C:\Program\ Files\ (x86)\Arduino\hardware\arduino\avr\cores\arduino/Arduino.h
+ C:\Program\ Files\ (x86)\Microsoft\ Visual\ Studio\ 14.0\Common7\IDE\Extensions\ph15cfmq.oax\Micro\ Platforms\default\debuggers\VM_DBG/VM_DBG.h

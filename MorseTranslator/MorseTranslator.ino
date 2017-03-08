@@ -1,9 +1,11 @@
 #include <ArduinoSTL.h>
-#include <LiquidCrystal.h>
+#include <eeprom.h>
+#include "LiquidCrystal.h"
 #include "BinaryTree.h"
 
 // initialise lcd library (does not connect to lcd)
 LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
+const int lcdPin = 6;
 
 // store which pins are for input button, piezo buzzer. and delete button
 const int inputButtPin = 7;
@@ -16,24 +18,32 @@ const float divisor = 10000.0f;
 const float timeUnit = 80.0f;
 const int spaceLength = 8;
 
-// values for checking when buttons are being pressed and were last pressed
+// values for checking when buttons are being pressed and were last pressed (only accessed by their relative
+// functions)
 bool inputPrevPressed = false;
 bool delPrevPressed = false;
 float lastChange = 0;
 
-// tracking cursor and screen position
-int cursorPosition[2] = { 0, 0 };
-int screenColRightPosition = 16;
-
 // storing current morse code inputted
-char morseCode[4];
-int morseCharNum = 0;
+std::vector<char> morseCode = std::vector<char>();
 
 // storing the translated characters
 std::vector<char> translation = std::vector<char>();
 
 // custom structure for storing all morse values
 BinaryTree morseTree;
+
+// reference to functions
+void initialiseLCDScreen();
+void initialisePins();
+void buildMorseTree();
+bool checkInputButtPressed(std::vector<char> &morseInput);
+void morseToChar(std::vector<char> morseInput, std::vector<char> &translationInput);
+bool checkDelButtPressed(std::vector<char> &inputTranslation);
+void resetMorseInput(std::vector<char> &morseInput);
+void printScreen(std::vector<char> morseInput, std::vector<char> translationInput, LiquidCrystal &lcdInput);
+
+
 
 void setup() {
 	initialiseLCDScreen();
@@ -43,29 +53,17 @@ void setup() {
 }
 
 void loop() {
-	char dotDash = checkInputButtPressed();
-
-	if (dotDash != NULL && morseCharNum < 4) {
-		lcd.print(dotDash);
-		morseCode[morseCharNum] = dotDash;
-		morseCharNum++;
+	if (checkInputButtPressed(morseCode) && morseCode.back() != ' ' && morseCode.back() != NULL && morseCode.size() <= 4) {
+		printScreen(morseCode, translation, lcd);
 	}
-	else if (morseCharNum == 4 || dotDash == ' ') {
-		char morseChar = morseToChar();
-		translation.push_back(morseChar);
-
-		cursorPosition[0] = translation.size() - 1;
-		cursorPosition[1] = 1;
-		lcd.setCursor(cursorPosition[0], cursorPosition[1]);
-		lcd.write(morseChar);
-
-		resetMorseInput();
+	else if (morseCode.size() == 4 || morseCode.back() == ' ') {
+		morseToChar(morseCode, translation);
+		resetMorseInput(morseCode);
+		printScreen(morseCode, translation, lcd);
 	}
-	else
-		checkDelButtonPressed();
-	
-	checkScreenEdge();
-
+	else if(checkDelButtPressed(translation)) {
+		printScreen(morseCode, translation, lcd);
+	}
 	delay(10);
 }
 
@@ -73,6 +71,8 @@ void loop() {
 void initialiseLCDScreen() {
 	lcd.begin(16, 2);
 	lcd.cursor();
+	pinMode(lcdPin, OUTPUT);
+	digitalWrite(lcdPin, HIGH);
 }
 
 // setup which pins are input and output
@@ -166,27 +166,28 @@ void buildMorseTree() {
 }
 
 // continuously checks whether the input button is pressed/not pressed and for how long
-char checkInputButtPressed() {
-	char output = NULL;
+bool checkInputButtPressed(std::vector<char> &inputMorse) {
 	bool inputNowPressed = digitalRead(inputButtPin);
+	bool inputReturn = false;
 
 	if (inputPrevPressed) {
 		if (!inputNowPressed) {
 			noTone(buzzPin);
 			if (millis() - lastChange*divisor <= 3 * timeUnit)
-				output = '.';
+				inputMorse.push_back('.');
 			else
-				output = '-';
-			cursorPosition[0] += 1;
+				inputMorse.push_back('-');
 			inputPrevPressed = false;
 			lastChange = millis() / divisor;
+			inputReturn = true;
 		}
 	}
 	else if (!inputPrevPressed) {
 		if (!inputNowPressed) {
 
-			if (millis() - lastChange*divisor >= spaceLength * timeUnit && morseCharNum != 0) {
-				output = ' ';
+			if (millis() - lastChange*divisor >= spaceLength * timeUnit && inputMorse.size() != 0) {
+				inputMorse.push_back(' ');
+				inputReturn = true;
 			}
 		}
 		else if (inputNowPressed) {
@@ -195,96 +196,78 @@ char checkInputButtPressed() {
 			lastChange = millis() / divisor;
 		}
 	}
-
-	return output;
+	return inputReturn;
 }
 
 // uses the combination of dots and dashes to navigate the binary tree (dot is left, dash is right)
-char morseToChar() {
+void morseToChar(std::vector<char> morseInput, std::vector<char> &translationInput) {
 	node *morseLetter = morseTree.getRoot();
 
-	for (int i = 0; i < sizeof(morseCode); i++) {
-		char dotDash = morseCode[i];
-		if (dotDash == ' ' || dotDash == NULL)
-			return morseLetter->key_value;
-		else {
-			switch (dotDash) {
-			case '.':
-				if (morseLetter->left == NULL)
-					return '?';
-				morseLetter = morseLetter->left;
-				break;
+	for (int i = 0; i < morseInput.size(); i++) {
+		char dotDash = morseInput[i];
+		switch (dotDash) {
+		case '.':
+			if (morseLetter->left == NULL)
+				translationInput.push_back('?');
+			morseLetter = morseLetter->left;
+			break;
 
-			case '-':
-				if (morseLetter->right == NULL)
-					return '?';
-				morseLetter = morseLetter->right;
-				break;
+		case '-':
+			if (morseLetter->right == NULL)
+				translationInput.push_back('?');
+			morseLetter = morseLetter->right;
+			break;
 
-			default:
-				break;
-			}
+		default:
+			break;
 		}
 	}
-
-	return morseLetter->key_value;
+	return translationInput.push_back(morseLetter->key_value);
 }
 
 // checks whether the delete button is pressed/not pressed and how long for
-void checkDelButtonPressed() {
+bool checkDelButtPressed(std::vector<char> &inputTranslation) {
 	bool delButtPressed = digitalRead(delButtPin);
 
 	if (delButtPressed && !delPrevPressed) {
-		int endChar = translation.size() - 1;
-		cursorPosition[0] = std::max(0, endChar);
-		cursorPosition[1] = 1;
-		lcd.setCursor(cursorPosition[0], cursorPosition[1]);
-		lcd.print(" ");
-		resetCursor();
-		translation.pop_back();
+		inputTranslation.pop_back();
 		delPrevPressed = true;
-		tone(buzzPin, 60);
+		tone(buzzPin, 50);
+		return true;
 	}
-
 	if (!delButtPressed && delPrevPressed) {
 		delPrevPressed = false;
 		noTone(buzzPin);
 	}
-}
-
-// check whether the translation has gone beyond the screen edge and moves it accordingly
-void checkScreenEdge() {
-	if (translation.size() > screenColRightPosition) {
-		screenColRightPosition += 1;
-		lcd.scrollDisplayLeft();
-		resetCursor();
-	}
-	else if (translation.size() < screenColRightPosition && screenColRightPosition > 16) {
-		screenColRightPosition -= 1;
-		lcd.scrollDisplayRight();
-		resetCursor();
-	}
-}
-
-// set cursor to the top left of the screen
-void resetCursor() {
-	cursorPosition[0] = screenColRightPosition - 16;
-	cursorPosition[1] = 0;
-	lcd.setCursor(cursorPosition[0], cursorPosition[1]);
+	return false;
 }
 
 // removes morse input on top line
-void resetMorseInput() {
-	resetCursor();
-	cursorPosition[0] += morseCharNum;
-	cursorPosition[1] = 0;
+void resetMorseInput(std::vector<char> &morseInput) {
+	morseInput = std::vector<char>();
+}
 
-	for (int i = 0; i < morseCharNum; i++) {
-		cursorPosition[0] = std::max(0, cursorPosition[0] - 1);
-		lcd.setCursor(cursorPosition[0], cursorPosition[1]);
-		lcd.print(" ");
-		lcd.setCursor(cursorPosition[0], cursorPosition[1]);
-		morseCode[i] = NULL;
+// clears the screen and prints new page
+void printScreen(std::vector<char> morseInput, std::vector<char> translationInput, LiquidCrystal &lcdInput) {
+	lcdInput.noCursor();
+	lcdInput.clear();
+
+	int textEndPos = translationInput.size();
+	lcdInput.setCursor(0, 1);
+	int screenDifference = 0;
+	if (textEndPos > 16) {
+		screenDifference = textEndPos - 16;
+		for (int i = screenDifference; i < textEndPos; i++)
+			lcdInput.print(translationInput[i]);
 	}
-	morseCharNum = 0;
+	else {
+		for (int i = 0; i < textEndPos; i++)
+			lcdInput.print(translationInput[i]);
+	}
+
+	lcdInput.setCursor(0, 0);
+	for (int i = 0; i < morseInput.size(); i++)
+		lcdInput.print(morseInput[i]);
+
+	lcdInput.cursor();
 }
